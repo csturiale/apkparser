@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/xml"
 	"fmt"
-	"github.com/avast/apkparser"
+	"github.com/csturiale/apkparser"
 	"io"
 	"io/ioutil"
 	"os"
@@ -15,24 +15,13 @@ import (
 )
 
 func Example() {
-	enc := xml.NewEncoder(os.Stdout)
-	enc.Indent("", "\t")
-	zipErr, resErr, manErr := apkparser.ParseApk(os.Args[1], enc)
-	if zipErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open the APK: %s", zipErr.Error())
+	apkInfo, err := apkparser.ParseApk(os.Args[1])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open the APK: %s", err)
 		os.Exit(1)
 		return
 	}
-
-	if resErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to parse resources: %s", resErr.Error())
-	}
-	if manErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to parse AndroidManifest.xml: %s", manErr.Error())
-		os.Exit(1)
-		return
-	}
-	fmt.Println()
+	fmt.Println(apkInfo)
 }
 
 func testExpectedOutputFile(t *testing.T, fnBase string) {

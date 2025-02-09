@@ -454,7 +454,7 @@ func (x *ResourceTable) GetIconPng(resId uint32) (*ResourceEntry, error) {
 			if more, _ := x.getEntryConfigs(group, typ, entryId, 256); len(more) != 0 {
 				entries = append(entries, more...)
 			}
-		} else if val, _ := e.value.String(); strings.HasSuffix(val, ".png") {
+		} else {
 			res = e
 		}
 	}

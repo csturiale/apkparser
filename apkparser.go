@@ -2,7 +2,12 @@
 package apkparser
 
 import (
+	"bytes"
+	"encoding/xml"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"os"
 	"runtime/debug"
@@ -17,13 +22,13 @@ type ApkParser struct {
 }
 
 // Calls ParseApkReader
-func ParseApk(path string, encoder ManifestEncoder) (zipErr, resourcesErr, manifestErr error) {
+func ParseApk(path string) (ApkInfo, error) {
 	f, zipErr := os.Open(path)
 	if zipErr != nil {
-		return
+		return ApkInfo{}, zipErr
 	}
 	defer f.Close()
-	return ParseApkReader(f, encoder)
+	return ParseApkReader(f)
 }
 
 // Parse APK's Manifest, including resolving refences to resource values.
@@ -31,15 +36,14 @@ func ParseApk(path string, encoder ManifestEncoder) (zipErr, resourcesErr, manif
 //
 // zipErr != nil means the APK couldn't be opened. The manifest will be parsed
 // even when resourcesErr != nil, just without reference resolving.
-func ParseApkReader(r io.ReadSeeker, encoder ManifestEncoder) (zipErr, resourcesErr, manifestErr error) {
+func ParseApkReader(r io.ReadSeeker) (ApkInfo, error) {
 	zip, zipErr := OpenZipReader(r)
 	if zipErr != nil {
-		return
+		return ApkInfo{}, zipErr
 	}
 	defer zip.Close()
 
-	resourcesErr, manifestErr = ParseApkWithZip(zip, encoder)
-	return
+	return ParseApkWithZip(zip)
 }
 
 // Parse APK's Manifest, including resolving refences to resource values.
@@ -49,15 +53,38 @@ func ParseApkReader(r io.ReadSeeker, encoder ManifestEncoder) (zipErr, resources
 // This method will not Close() the zip.
 //
 // The manifest will be parsed even when resourcesErr != nil, just without reference resolving.
-func ParseApkWithZip(zip *ZipReader, encoder ManifestEncoder) (resourcesErr, manifestErr error) {
+func ParseApkWithZip(zip *ZipReader) (ApkInfo, error) {
+	var apkInfo ApkInfo
+	buf := new(bytes.Buffer)
+	enc := xml.NewEncoder(buf)
+	enc.Indent("", "\t")
+
 	p := ApkParser{
 		zip:     zip,
-		encoder: encoder,
+		encoder: enc,
 	}
 
-	resourcesErr = p.parseResources()
-	manifestErr = p.ParseXml("AndroidManifest.xml")
-	return
+	resourcesErr := p.parseResources()
+	if resourcesErr != nil {
+		return apkInfo, resourcesErr
+	}
+	manifestErr := p.ParseXml("AndroidManifest.xml")
+	if manifestErr != nil {
+		return apkInfo, manifestErr
+	}
+
+	var manifest Manifest
+	_ = xml.Unmarshal(buf.Bytes(), &manifest)
+	iconPath := manifest.App.Icon
+	icon, err := p.ParseIcon(iconPath)
+	if err != nil {
+		return apkInfo, err
+	}
+
+	apkInfo.Manifest = manifest
+	apkInfo.Icon = icon
+
+	return apkInfo, nil
 }
 
 // Prepare the ApkParser instance, load resources if possible.
@@ -123,4 +150,28 @@ func (p *ApkParser) ParseXml(name string) error {
 	}
 
 	return fmt.Errorf("Failed to parse %s, last error: %v", name, lastErr)
+}
+
+func (p *ApkParser) ParseIcon(name string) (image.Image, error) {
+	file := p.zip.File[name]
+
+	if file == nil {
+		return nil, fmt.Errorf("Failed to find %s in APK!", name)
+	}
+
+	if err := file.Open(); err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	b, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	icon, _, err := image.Decode(bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	} else {
+		return icon, nil
+	}
+
 }

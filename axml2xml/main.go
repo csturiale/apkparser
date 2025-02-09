@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/avast/apkparser"
 	"github.com/avast/apkverifier"
 	"github.com/avast/apkverifier/apilevel"
+	"github.com/csturiale/apkparser"
 )
 
 type optsType struct {

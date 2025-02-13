@@ -6,6 +6,14 @@ type ApkInfo struct {
 	Manifest Manifest
 	Icon     image.Image
 }
+type AdaptiveIcon struct {
+	Background struct {
+		Drawable string `xml:"http://schemas.android.com/apk/res/android drawable,attr"`
+	} `xml:"background"`
+	Foreground struct {
+		Drawable string `xml:"http://schemas.android.com/apk/res/android drawable,attr"`
+	} `xml:"foreground"`
+}
 
 type Instrumentation struct {
 	Name            string `xml:"http://schemas.android.com/apk/res/android name,attr"`

@@ -5,12 +5,15 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
+	_ "golang.org/x/image/webp"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime/debug"
+	"strconv"
 )
 
 type ApkParser struct {
@@ -76,10 +79,7 @@ func ParseApkWithZip(zip *ZipReader) (ApkInfo, error) {
 	var manifest Manifest
 	_ = xml.Unmarshal(buf.Bytes(), &manifest)
 	iconPath := manifest.App.Icon
-	icon, err := p.ParseIcon(iconPath)
-	if err != nil {
-		return apkInfo, err
-	}
+	icon, _ := p.ParseIcon(iconPath)
 
 	apkInfo.Manifest = manifest
 	apkInfo.Icon = icon
@@ -167,11 +167,53 @@ func (p *ApkParser) ParseIcon(name string) (image.Image, error) {
 	if err != nil {
 		return nil, err
 	}
+	resourceIconId, err := p.checkAdaptiveIcon(name, b)
+	if err != nil {
+		return nil, err
+	}
+	if resourceIconId > 0 {
+		png, err := p.resources.GetIconPng(resourceIconId)
+		if err != nil {
+			return nil, err
+		}
+		data, err := png.GetValue().Data()
+		if err != nil {
+			return nil, err
+		}
+		return p.ParseIcon(data.(string))
+	}
+
 	icon, _, err := image.Decode(bytes.NewReader(b))
 	if err != nil {
 		return nil, err
-	} else {
-		return icon, nil
 	}
+	return icon, nil
+}
 
+func (p *ApkParser) checkAdaptiveIcon(name string, b []byte) (uint32, error) {
+	var resourceID uint32
+	resourceID = 0
+	if filepath.Ext(name) == ".xml" {
+		buf := new(bytes.Buffer)
+		enc := xml.NewEncoder(buf)
+		enc.Indent("", "    ")
+		if err := ParseXml(bytes.NewReader(b), enc, nil); err != nil {
+			return resourceID, err
+		}
+		var ai AdaptiveIcon
+		err := xml.Unmarshal(buf.Bytes(), &ai)
+		resourceID, err = ParseResID(ai.Foreground.Drawable)
+		if err != nil {
+			return resourceID, err
+		}
+	}
+	return resourceID, nil
+}
+
+func ParseResID(s string) (uint32, error) {
+	id, err := strconv.ParseUint(s[1:], 16, 32)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(id), nil
 }

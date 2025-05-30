@@ -61,12 +61,14 @@ func ParseXml(r io.Reader, enc ManifestEncoder, resources *ResourceTable) error 
 
 	defer x.encoder.Flush()
 
-	totalLen -= chunkHeaderSize
+	totalLen -= uint32(headerLen)
+	// 29f82928c630897576aa0c9c3d2f36d722a94ec574bd5ca4aaf4ba5f9d014a32
+	io.CopyN(ioutil.Discard, r, int64(headerLen)-chunkHeaderSize)
 
 	var len uint32
 	var lastId uint16
 	for i := uint32(0); i < totalLen; i += len {
-		id, _, len, err = parseChunkHeader(r)
+		id, headerLen, len, err = parseChunkHeader(r)
 		if err != nil {
 			return fmt.Errorf("Error parsing header at 0x%08x of 0x%08x %08x: %s", i, totalLen, lastId, err.Error())
 		}

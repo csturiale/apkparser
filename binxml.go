@@ -84,12 +84,14 @@ func ParseXml(r io.Reader, enc ManifestEncoder, resources *ResourceTable) error 
 			err = x.parseResourceIds(lm)
 		default:
 			if (id & chunkMaskXml) == 0 {
-				err = fmt.Errorf("Unknown chunk id 0x%x", id)
+				// Android ignores it
+				// A9842ACCCE9D21549479EEB84F5E2033DA5E479EE1E183D48445BC99324ED983
+				//err = fmt.Errorf("Unknown chunk id 0x%x %d", id, len)
 				break
 			}
 
 			// skip line number and unknown 0xFFFFFFFF
-			if _, err = io.CopyN(ioutil.Discard, lm, 2*4); err != nil {
+			if _, err = io.CopyN(ioutil.Discard, lm, int64(headerLen)-8); err != nil {
 				break
 			}
 
@@ -104,6 +106,8 @@ func ParseXml(r io.Reader, enc ManifestEncoder, resources *ResourceTable) error 
 				err = x.parseTagEnd(lm)
 			case chunkXmlText:
 				err = x.parseText(lm)
+			case chunkXmlLastChunk: // unimplemented
+			case chunkXmlResourceMap: // unimplemented
 			default:
 				err = fmt.Errorf("Unknown chunk id 0x%x", id)
 			}
@@ -195,10 +199,12 @@ func (x *binxmlParseInfo) parseTagStart(r *io.LimitedReader) error {
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &attrCount); err != nil {
-		return fmt.Errorf("error reading classAttr: %s", err.Error())
+		return fmt.Errorf("error reading attrCount: %s", err.Error())
 	}
 
-	io.CopyN(io.Discard, r, 2*3) // discard idIndex, classIndex, styleIndex
+	// attrStart - Byte offset from the start of this structure where the attributes start.
+	// A9842ACCCE9D21549479EEB84F5E2033DA5E479EE1E183D48445BC99324ED983
+	io.CopyN(io.Discard, r, int64(attrStart)-14)
 
 	namespace, err := x.strings.get(namespaceIdx)
 	if err != nil {

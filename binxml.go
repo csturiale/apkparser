@@ -178,6 +178,43 @@ func (x *binxmlParseInfo) parseNsEnd(r *io.LimitedReader) error {
 	return nil
 }
 
+func mapDisallowedNameRunes(r rune) rune {
+	// https://www.w3.org/TR/REC-xml/#NT-Name
+	// ":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
+	//NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
+
+	switch r {
+	case ':' | '_' | '-' | '.' | '\u00B7':
+		return r
+	}
+
+	if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+		return r
+	}
+
+	if (r >= '\u00C0' && r <= '\u00D6') || (r >= '\u00D8' && r <= '\u00F6') || (r >= '\u00F8' && r <= '\u02FF') {
+		return r
+	}
+
+	if (r >= '\u0300' && r <= '\u037D') || (r >= '\u037F' && r <= '\u1FFF') || (r >= '\u200C' && r <= '\u200D') {
+		return r
+	}
+
+	if (r >= '\u203F' && r <= '\u2040') || (r >= '\u2070' && r <= '\u218F') || (r >= '\u2C00' && r <= '\u2FEF') {
+		return r
+	}
+
+	if (r >= '\u3001' && r <= '\uD7FF') || (r >= '\uF900' && r <= '\uFDCF') || (r >= '\uFDF0' && r <= '\uFFFD') {
+		return r
+	}
+
+	if r >= '\U00010000' && r <= '\U000EFFFF' {
+		return r
+	}
+
+	return '_'
+}
+
 func (x *binxmlParseInfo) parseTagStart(r *io.LimitedReader) error {
 	var namespaceIdx, nameIdx uint32
 	var attrStart, attrSize, attrCount uint16
@@ -270,7 +307,7 @@ func (x *binxmlParseInfo) parseTagStart(r *io.LimitedReader) error {
 		}
 
 		if attrNameFromStrings != "" {
-			attrName = attrNameFromStrings
+			attrName = strings.Map(mapDisallowedNameRunes, attrNameFromStrings)
 		} else if attrNameSpace == "" {
 			attrNameSpace = "http://schemas.android.com/apk/res/android"
 		}
@@ -317,6 +354,7 @@ func (x *binxmlParseInfo) parseTagStart(r *io.LimitedReader) error {
 		default:
 			resultAttr.Value = strconv.FormatInt(int64(int32(attr.Res.Data)), 10)
 		}
+
 		tok.Attr = append(tok.Attr, resultAttr)
 	}
 

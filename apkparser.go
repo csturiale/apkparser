@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
+	"strings"
 )
 
 type ApkParser struct {
@@ -211,6 +212,9 @@ func (p *ApkParser) checkAdaptiveIcon(name string, b []byte) (uint32, error) {
 }
 
 func ParseResID(s string) (uint32, error) {
+	if strings.Trim(s, " ") == "" {
+		return 0, nil
+	}
 	id, err := strconv.ParseUint(s[1:], 16, 32)
 	if err != nil {
 		return 0, err
